@@ -1,35 +1,105 @@
-# syntax=docker/dockerfile:1
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+      POSTGRES_DB: mlflow
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow -d mlflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-# ---- Builder: resolve deps + install the project into a venv with uv ----
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
-ENV UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy \
-    UV_PYTHON_DOWNLOADS=0
-WORKDIR /app
+  mlflow:
+    build:
+      context: .
+      dockerfile: docker/mlflow.Dockerfile
+    command: >
+      mlflow server
+      --host 0.0.0.0 --port 5000
+      --backend-store-uri postgresql+psycopg2://mlflow:mlflow@postgres:5432/mlflow
+      --serve-artifacts --artifacts-destination /mlflow/artifacts
+      --allowed-hosts mlflow:5000,localhost:5000,localhost:6001
+    ports:
+      - "6001:5000"          # host 6001 -> container 5000 (keeps local default working)
+    volumes:
+      - mlartifacts:/mlflow/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://localhost:5000/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
-# Layer 1 — dependencies only (cached unless uv.lock / pyproject.toml change)
-RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project --no-dev
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
-# Layer 2 — copy source, then install the project itself
-COPY . /app
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+  # One-shot: pull the model after ollama is healthy, then exit.
+  ollama-init:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["ollama", "pull", "qwen3.5:0.8b"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
 
-# ---- Runtime: slim image with just the venv + source, non-root ----
-FROM python:3.12-slim-bookworm
-RUN useradd --create-home --uid 1000 app
-WORKDIR /app
-COPY --from=builder --chown=app:app /app /app
-ENV PATH="/app/.venv/bin:$PATH" \
-    API_HOST=0.0.0.0 \
-    API_PORT=8000
-USER app
-EXPOSE 8000
-# Default command serves the API; the eval runner overrides it (Step 2 compose: `command: essential-rag`)
-CMD ["rag-serve"]
-#Note: it only reports healthy once MLflow is reachable:
-HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
-  CMD python -c "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"
+  api:
+    build: .                 # Step 1 Dockerfile (default CMD: rag-serve)
+    environment:
+      API_HOST: 0.0.0.0
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      OLLAMA_BASE_URL: http://ollama:11434
+      LLM_MODEL: qwen3.5:0.8b
+    ports:
+      - "8000:8000"
+    depends_on:
+      mlflow:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # One-shot eval runner: `docker compose run --rm eval`.
+  # `profiles` keeps it OUT of `docker compose up` (it runs once and exits).
+  eval:
+    build: .
+    command: ["essential-rag"]   # overrides the API CMD; runs evaluate:main
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      OLLAMA_BASE_URL: http://ollama:11434
+      LLM_MODEL: qwen3.5:0.8b
+    depends_on:
+      mlflow:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+    profiles: ["tools"]
+    restart: "no"
+
+volumes:
+  pgdata:
+  mlartifacts:
+  ollama:

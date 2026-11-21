@@ -73,8 +73,8 @@ eval_dataset = [
 def evaluate():
     settings = get_settings()
 
-    mlflow.set_tracking_uri("http://localhost:6001")
-    mlflow.set_experiment("essential-rag")
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    mlflow.set_experiment(settings.mlflow_experiment)
     mlflow.langchain.autolog()
 
     print("Running Essential RAG evaluation ...\n")
@@ -104,6 +104,7 @@ def evaluate():
     scorer_cols = [c for c in results.result_df.columns if c.endswith("/value")]
     print(results.result_df[["request", "response"] + scorer_cols].to_string(index=False))
 
+    print(settings.mlflow_tracking_uri)
     print("\n OK Done open http://localhost:6001 to view per-sample scores.")
 
 
