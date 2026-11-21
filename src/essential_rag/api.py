@@ -3,6 +3,7 @@
 Exposes the same retrieval+generation chain used in batch evaluation as an online HTTP service.
 The chain is built once at startup (lifespan) and reused across requests.
 """
+
 from contextlib import asynccontextmanager
 from importlib.metadata import version
 
@@ -92,14 +93,3 @@ def serve() -> None:
 
     settings = get_settings()
     uvicorn.run("essential_rag.api:app", host=settings.api_host, port=settings.api_port)
-
-
-
-
-
-
-
-
-
-
-

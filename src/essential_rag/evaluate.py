@@ -63,10 +63,7 @@ eval_dataset = [
         "inputs": {"question": "How does Ollama expose its API?"},
         "expectations": {"keyword": "REST"},
     },
-    {
-        "inputs": {"question": "What is RAG?"},
-        "expectations": {"keyword": "retrieval"}
-    },
+    {"inputs": {"question": "What is RAG?"}, "expectations": {"keyword": "retrieval"}},
 ]
 
 
@@ -86,16 +83,16 @@ def evaluate():
         tracking.log_eval_artifacts(eval_dataset, RAG_PROMPT_TEMPLATE)
 
         results = mlflow.genai.evaluate(
-            data = eval_dataset,
+            data=eval_dataset,
             predict_fn=lambda question: rag_predict_fn(question, rag_chain),
             scorers=[is_not_empty, not_hallucinating, keyword_present, response_length_ok],
         )
 
         tracking.log_eval_metrics(results.metrics)
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("ESSENTIAL RAG — EVALUATION RESULTS")
-    print("="*60)
+    print("=" * 60)
     print("\nAggregate metrics:")
     for k, v in results.metrics.items():
         print(f"    {k}: {v:.3f}" if isinstance(v, float) else f"   {k}: {v}")

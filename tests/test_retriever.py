@@ -27,4 +27,4 @@ def test_return_shape():
 
 def test_is_deterministic():
     q = "What does MLflow Tracking log?"
-    assert retrieve(q) == retrieve(q)   # same input -> same output
+    assert retrieve(q) == retrieve(q)  # same input -> same output

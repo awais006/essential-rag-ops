@@ -20,4 +20,3 @@ def retrieve(query: str, top_k: int | None = None) -> list[dict]:
 
     scored.sort(key=lambda x: x[0], reverse=True)
     return [doc for _, doc in scored[:top_k]]
-

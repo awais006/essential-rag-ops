@@ -36,7 +36,6 @@ def get_llm(settings: Settings | None = None) -> BaseLanguageModel:
         )
 
     if settings.llm_backend == "openai":
-
         return ChatOpenAI(
             model=settings.llm_model,
             base_url=settings.openai_base_url,
