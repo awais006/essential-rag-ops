@@ -103,6 +103,9 @@ def evaluate():
 
     print(settings.mlflow_tracking_uri)
     print("\n OK Done open http://localhost:6001 to view per-sample scores.")
+    print("\n OK Done open http://localhost:6001 to view per-sample scores.")
+
+    return results.metrics
 
 
 if __name__ == "__main__":

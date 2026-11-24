@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     mlflow_experiment: str = Field(default="essential-rag")
 
     # --- LLM backend selection ---
-    llm_backend: Literal["ollama", "openai"] = Field(default="ollama")
+    llm_backend: Literal["ollama", "openai", "fake"] = Field(default="ollama")
     llm_model: str = Field(default="qwen3.5:0.8b")
     llm_temperature: float = Field(default=0.1)
 
