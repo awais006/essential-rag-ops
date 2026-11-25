@@ -103,9 +103,12 @@ def evaluate():
 
     print(settings.mlflow_tracking_uri)
     print("\n OK Done open http://localhost:6001 to view per-sample scores.")
-    print("\n OK Done open http://localhost:6001 to view per-sample scores.")
 
     return results.metrics
+
+
+def metric_columns(df):
+    return sorted(c for c in df.columns if c.startswith("metrics.") and c.endswith("/mean"))
 
 
 if __name__ == "__main__":
